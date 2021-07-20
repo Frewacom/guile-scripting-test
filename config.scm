@@ -16,6 +16,9 @@
       '()
       (record-type-fields type))))
 
+; predicate for validating that a list only contains valid `rule` objects
+(define (list-of-rules? lst) (every rule? lst))
+
 ; dwl configuration
 (define-configuration
   dwl-configuration
@@ -37,19 +40,25 @@
   (natural-scrolling
     (number 0)
     "trackpad natural scrolling")
-  (modifier-key
-    (string "WLR_MODIFIER_LOGO")
-    "global modifier key")
   (terminal
     (string "st")
     "terminal application to use")
   (menu
     (string "bemenu")
     "menu application to use")
+  (rules
+    (list-of-rules '())
+    "list of application rules")
   (no-serialization))
 
 ; create and transform the configuration into
 ; a format that can be easily accessed from C.
-(transform-config
-  <dwl-configuration>
-  (dwl-configuration))
+(define config
+  (transform-config
+    <dwl-configuration>
+    (dwl-configuration
+      (border-px 2)
+      (rules
+        (list
+          (make-rule "firefox" #f 4 0 -1)
+          (make-rule "tidal" #f 5 0 1))))))
