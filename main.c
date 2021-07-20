@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <libguile.h>
+#include <wlr/types/wlr_keyboard.h>
+
+#define MODKEY WLR_MODIFIER_LOGO
 
 typedef struct {
     const char *id;
@@ -84,9 +87,20 @@ parse_rule(SCM rule_obj)
     return rule;
 }
 
+static SCM
+test_func(SCM value)
+{
+    char *str = scm_to_locale_string(value);
+    printf("hello from scheme %s\n", str);
+    return SCM_UNSPECIFIED;
+}
+
 static void
 inner_main(void *data, int argc, char **argv)
 {
+    scm_c_define("MODKEY", scm_from_int(MODKEY));
+    scm_c_define("MOD-SHIFT", scm_from_int(WLR_MODIFIER_SHIFT));
+    scm_c_define_gsubr("test-func", 1, 0, 0, &test_func);
     printf("Evaluating config file...\n");
     SCM evaluated = scm_c_primitive_load("config.scm");
     SCM config = get_variable("config");
@@ -114,6 +128,36 @@ inner_main(void *data, int argc, char **argv)
             printf("* tag: %d\n", rule->tags);
             printf("* isfloating: %d\n", rule->isfloating);
             printf("* monitor: %d\n", rule->monitor);
+        }
+        printf("------------------\n");
+    } else {
+        printf("No application rules, skipping...\n");
+    }
+
+    printf("Reading keybindings...\n");
+    SCM keys = get_value(config, "keys");
+
+    if (!scm_is_null(keys)) {
+        int length = scm_to_int(scm_length(keys));
+        printf("Parsing %d keybindings...\n", length);
+
+        for (int i = 0; i < length; i++) {
+            SCM item = scm_list_ref(keys, scm_from_int(i));
+            SCM modifiers = get_value(item, "modifiers");
+            int key = get_value_int(item, "key");
+
+            printf("------------------\n");
+            printf("* modifiers:");
+            int modifiers_length = scm_to_int(scm_length(modifiers));
+            for (int j = 0; j < modifiers_length; j++) {
+                SCM modifier = scm_list_ref(modifiers, scm_from_int(j));
+                printf(" %d", scm_to_int(modifier));
+            }
+            printf("\n");
+            printf("* key: %d\n", key);
+
+            SCM action = get_value(item, "action");
+            scm_call(action, SCM_UNDEFINED);
         }
         printf("------------------\n");
     } else {

@@ -1,6 +1,8 @@
 CC=gcc
-DEPS:=$(shell guile-config compile)
-FLAGS:=$(shell guile-config link)
+
+PKGS = wlroots guile-3.0
+CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
+LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
 
 install: main.c
-	${CC} main.c -o main ${DEPS} ${FLAGS}
+	${CC} $^ ${CFLAGS} ${LDLIBS} -DWLR_USE_UNSTABLE -o main

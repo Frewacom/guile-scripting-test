@@ -2,9 +2,16 @@
              (ice-9 match)
              (srfi srfi-1))
 
-; Allow default value in configuration to be
-; either a string or a boolean.
+; Since they will be undefined in REPL
+; (define MODKEY 0)
+; (define MOD-SHIFT 1)
+
+; List of available key modifiers
+(define %modifiers (list MOD-SHIFT MODKEY))
+
+(define (anything? val) `(,#t))
 (define (string-or-bool? val) (or (string? val) (boolean? val)))
+(define (list-of-modifiers? lst) (every (lambda (x) (member x %modifiers)) lst))
 
 ; Apply conditional transformations to singular
 ; values inside the dwl configuration.
@@ -12,6 +19,7 @@
   (match
     field
     ('rules (map (lambda (rule) (transform-config <dwl-rule> rule)) value))
+    ('keys (map (lambda (key) (transform-config <dwl-key> key)) value))
     (_ value)))
 
 ; Transforms a record into alist to allow the values to easily be
@@ -48,8 +56,22 @@
     "monitor to spawn application on")
   (no-serialization))
 
-; Predicate for validating that a list only contains valid `rule` objects
+; Keybinding configuration
+(define-configuration
+  dwl-key
+  (modifiers
+    (list-of-modifiers (list MODKEY))
+    "list of modifiers to user for the keybinding")
+  (key
+    (number)
+    "regular key that triggers the keybinding")
+  (action
+    (anything)
+    "function to call when triggered")
+  (no-serialization))
+
 (define (list-of-rules? lst) (every dwl-rule? lst))
+(define (list-of-keys? lst) (every dwl-key? lst))
 
 ; dwl configuration
 (define-configuration
@@ -81,6 +103,9 @@
   (rules
     (list-of-rules '())
     "list of application rules")
+  (keys
+    (list-of-keys '())
+    "list of keybindings")
   (no-serialization))
 
 ; Create and transform the configuration into
@@ -90,6 +115,12 @@
     <dwl-configuration>
     (dwl-configuration
       (border-px 2)
+      (keys
+        (list
+          (dwl-key
+            (modifiers (list MODKEY MOD-SHIFT))
+            (key 1)
+            (action (lambda () (test-func "hello johan"))))))
       (rules
         (list
           (dwl-rule
