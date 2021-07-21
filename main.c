@@ -157,7 +157,9 @@ inner_main(void *data, int argc, char **argv)
             printf("* key: %d\n", key);
 
             SCM action = get_value(item, "action");
-            scm_call(action, SCM_UNDEFINED);
+            if (scm_procedure_p(action) == SCM_BOOL_T) {
+                scm_call(action, SCM_UNDEFINED);
+            }
         }
         printf("------------------\n");
     } else {

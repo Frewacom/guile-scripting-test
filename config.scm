@@ -5,9 +5,9 @@
 ; Syntax helper to easily create callable actions.
 ; It accepts any number of expressions as arguments
 ; and will wrap them inside a lambda to lazily evaluate them.
-(define-syntax begin-action
+(define-syntax dwl-procedure
   (syntax-rules ()
-    ((begin-action exp ...)
+    ((dwl-procedure exp ...)
      (lambda () (begin exp ...)))))
 
 ; Since they will be undefined in REPL
@@ -17,8 +17,8 @@
 ; List of available key modifiers
 (define %modifiers (list MOD-SHIFT MODKEY))
 
-(define (anything? val) `(,#t))
 (define (string-or-bool? val) (or (string? val) (boolean? val)))
+(define (procedure-or-bool? val) (or (procedure? val) (boolean? val)))
 (define (list-of-modifiers? lst) (every (lambda (x) (member x %modifiers)) lst))
 
 ; Apply conditional transformations to singular
@@ -26,8 +26,9 @@
 (define (transform-value field value)
   (match
     field
-    ('rules (map (lambda (rule) (transform-config <dwl-rule> rule)) value))
     ('keys (map (lambda (key) (transform-config <dwl-key> key)) value))
+    ('layouts (map (lambda (key) (transform-config <dwl-layout> key)) value))
+    ('rules (map (lambda (rule) (transform-config <dwl-rule> rule)) value))
     (_ value)))
 
 ; Transforms a record into alist to allow the values to easily be
@@ -64,22 +65,35 @@
     "monitor to spawn application on")
   (no-serialization))
 
+; Layout configuration
+(define-configuration
+  dwl-layout
+  (symbol
+    (string)
+    "symbol that should be shown when layout is active")
+  (arrange
+    (procedure-or-bool #f)
+    "procedure to call when selected")
+  (no-serialization))
+
 ; Keybinding configuration
 (define-configuration
   dwl-key
   (modifiers
     (list-of-modifiers (list MODKEY))
-    "list of modifiers to user for the keybinding")
+    "list of modifiers to use for the keybinding")
   (key
     (number)
     "regular key that triggers the keybinding")
   (action
-    (anything)
-    "function to call when triggered")
+    (procedure-or-bool #f)
+    "procedure to call when triggered")
   (no-serialization))
 
-(define (list-of-rules? lst) (every dwl-rule? lst))
+(define (list-of-tags? lst) (every string? lst))
 (define (list-of-keys? lst) (every dwl-key? lst))
+(define (list-of-rules? lst) (every dwl-rule? lst))
+(define (list-of-layouts? lst) (every dwl-layout? lst))
 
 ; dwl configuration
 (define-configuration
@@ -108,6 +122,13 @@
   (menu
     (string "bemenu")
     "menu application to use")
+  (tags
+    (list-of-tags
+      (list "1" "2" "3" "4" "5" "6" "7" "8" "9"))
+    "list of tag names")
+  (layouts
+    (list-of-layouts '())
+    "list of layouts to use")
   (rules
     (list-of-rules '())
     "list of application rules")
@@ -123,6 +144,22 @@
     <dwl-configuration>
     (dwl-configuration
       (border-px 2)
+      (tags
+        (list "1" "2" "3" "4" "5"))
+      (layouts
+        (list
+          (dwl-layout
+            (symbol "[]=")
+            (arrange
+              (dwl-procedure
+                (test-func "arrange 1"))))
+          (dwl-layout
+            (symbol "[M]")
+            (arrange
+              (dwl-procedure
+                (test-func "arrange 1"))))
+          (dwl-layout
+            (symbol "><>"))))
       (keys
         (list
           (dwl-key
@@ -130,9 +167,12 @@
               (list MODKEY MOD-SHIFT))
             (key 1)
             (action
-                (begin-action
-                  (test-func "hello johan")
-                  (test-func "hello fredrik"))))))
+                (dwl-procedure
+                  (test-func "action 1"))))
+          (dwl-key
+            (modifiers
+              (list MODKEY MOD-SHIFT))
+            (key 2))))
       (rules
         (list
           (dwl-rule
