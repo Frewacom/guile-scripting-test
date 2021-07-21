@@ -2,9 +2,17 @@
              (ice-9 match)
              (srfi srfi-1))
 
+; Syntax helper to easily create callable actions.
+; It accepts any number of expressions as arguments
+; and will wrap them inside a lambda to lazily evaluate them.
+(define-syntax begin-action
+  (syntax-rules ()
+    ((begin-action exp ...)
+     (lambda () (begin exp ...)))))
+
 ; Since they will be undefined in REPL
-; (define MODKEY 0)
-; (define MOD-SHIFT 1)
+(define-once MODKEY 0)
+(define-once MOD-SHIFT 1)
 
 ; List of available key modifiers
 (define %modifiers (list MOD-SHIFT MODKEY))
@@ -118,9 +126,13 @@
       (keys
         (list
           (dwl-key
-            (modifiers (list MODKEY MOD-SHIFT))
+            (modifiers
+              (list MODKEY MOD-SHIFT))
             (key 1)
-            (action (lambda () (test-func "hello johan"))))))
+            (action
+                (begin-action
+                  (test-func "hello johan")
+                  (test-func "hello fredrik"))))))
       (rules
         (list
           (dwl-rule
