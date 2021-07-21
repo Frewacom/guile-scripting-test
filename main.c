@@ -101,18 +101,21 @@ inner_main(void *data, int argc, char **argv)
     scm_c_define("MODKEY", scm_from_int(MODKEY));
     scm_c_define("MOD-SHIFT", scm_from_int(WLR_MODIFIER_SHIFT));
     scm_c_define_gsubr("test-func", 1, 0, 0, &test_func);
-    printf("Evaluating config file...\n");
+
+    printf("Reading config file...\n");
     SCM evaluated = scm_c_primitive_load("config.scm");
     SCM config = get_variable("config");
 
     if (scm_is_null(config)) {
         fprintf(stderr, "error: 'config' is undefined or invalid\n");
         exit(1);
+    } else {
+        scm_c_eval_string("(pretty-print config)");
     }
 
-    borderpx = get_value_unsigned_int(config, "border-px", 25);
-
+    printf("\nEvaluating config file...\n");
     printf("Reading rules...\n");
+    borderpx = get_value_unsigned_int(config, "border-px", 25);
     SCM rules = get_value(config, "rules");
 
     if (!scm_is_null(rules)) {

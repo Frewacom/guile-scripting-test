@@ -1,5 +1,6 @@
 (use-modules (gnu services configuration)
              (ice-9 match)
+             (ice-9 pretty-print)
              (srfi srfi-1))
 
 ; Syntax helper to easily create callable actions.
@@ -29,6 +30,7 @@
     ('keys (map (lambda (key) (transform-config <dwl-key> key)) value))
     ('layouts (map (lambda (key) (transform-config <dwl-layout> key)) value))
     ('rules (map (lambda (rule) (transform-config <dwl-rule> rule)) value))
+    ('monitor-rules (map (lambda (rule) (transform-config <dwl-monitor-rule> rule)) value))
     (_ value)))
 
 ; Transforms a record into alist to allow the values to easily be
@@ -44,6 +46,48 @@
             acc))
         '()
         (record-type-fields type)))))
+
+; Layout configuration
+(define-configuration
+  dwl-layout
+  (id
+    (string)
+    "id that can be used to reference a layout, e.g. in a monitor rule")
+  (symbol
+    (string)
+    "symbol that should be shown when layout is active")
+  (arrange
+    (procedure-or-bool #f)
+    "procedure to call when selected")
+  (no-serialization))
+
+; Basic layouts
+(define %layout-default
+  (dwl-layout
+    (id "default")
+    (symbol "[]=")
+    (arrange
+      (dwl-procedure
+        (test-func "arrange 1")))))
+
+(define %layout-monocle
+  (dwl-layout
+    (id "monocle")
+    (symbol "[M]")
+    (arrange
+      (dwl-procedure
+        (test-func "arrange 1")))))
+
+(define %layout-floating
+  (dwl-layout
+    (id "floating")
+    (symbol "><>")))
+
+; Default layouts
+(define %base-layouts
+  (list %layout-default
+        %layout-monocle
+        %layout-floating))
 
 ; Application rule configuration
 (define-configuration
@@ -65,15 +109,24 @@
     "monitor to spawn application on")
   (no-serialization))
 
-; Layout configuration
+; Monitor rule configuration
 (define-configuration
-  dwl-layout
-  (symbol
-    (string)
-    "symbol that should be shown when layout is active")
-  (arrange
-    (procedure-or-bool #f)
-    "procedure to call when selected")
+  dwl-monitor-rule
+  (name
+    (string-or-bool #f)
+    "name of monitor, e.g. eDP-1")
+  (master-factor
+    (number 0.55)
+    "horizontal scaling factor for master windows")
+  (number-of-masters
+    (number 1)
+    "number of allowed windows in the master area")
+  (scale
+    (number 1)
+    "monitor scaling")
+  (layout
+    (string "default")
+    "default layout (id) to use for monitor")
   (no-serialization))
 
 ; Keybinding configuration
@@ -90,10 +143,16 @@
     "procedure to call when triggered")
   (no-serialization))
 
+; dwl configuration type predicates
 (define (list-of-tags? lst) (every string? lst))
 (define (list-of-keys? lst) (every dwl-key? lst))
 (define (list-of-rules? lst) (every dwl-rule? lst))
 (define (list-of-layouts? lst) (every dwl-layout? lst))
+(define (list-of-monitor-rules? lst) (every dwl-monitor-rule? lst))
+
+; Default monitor rules
+(define %base-monitor-rules
+  (list (dwl-monitor-rule)))
 
 ; dwl configuration
 (define-configuration
@@ -127,57 +186,54 @@
       (list "1" "2" "3" "4" "5" "6" "7" "8" "9"))
     "list of tag names")
   (layouts
-    (list-of-layouts '())
+    (list-of-layouts %base-layouts)
     "list of layouts to use")
   (rules
     (list-of-rules '())
     "list of application rules")
+  (monitor-rules
+    (list-of-monitor-rules %base-monitor-rules)
+    "list of monitor rules")
   (keys
     (list-of-keys '())
     "list of keybindings")
   (no-serialization))
 
-; Create and transform the configuration into
+; Custom dwl config
+(define dwl-config
+  (dwl-configuration
+    (border-px 2)
+    (tags
+      (list "1" "2" "3" "4" "5"))
+    (rules
+      (list
+        (dwl-rule
+          (id "firefox")
+          (tag 4))
+        (dwl-rule
+          (id "tidal")
+          (tag 5))))
+    (monitor-rules
+      (append
+        (list
+          (dwl-monitor-rule
+            (name "eDP-1")))
+        %base-monitor-rules))
+    (keys
+      (list
+        (dwl-key
+          (modifiers
+            (list MODKEY MOD-SHIFT))
+          (key 1)
+          (action
+            (dwl-procedure
+              (test-func "action 1"))))
+        (dwl-key
+          (modifiers
+            (list MODKEY MOD-SHIFT))
+          (key 2))))))
+
+; Transform the configuration into
 ; a format that can be easily accessed from C.
 (define config
-  (transform-config
-    <dwl-configuration>
-    (dwl-configuration
-      (border-px 2)
-      (tags
-        (list "1" "2" "3" "4" "5"))
-      (layouts
-        (list
-          (dwl-layout
-            (symbol "[]=")
-            (arrange
-              (dwl-procedure
-                (test-func "arrange 1"))))
-          (dwl-layout
-            (symbol "[M]")
-            (arrange
-              (dwl-procedure
-                (test-func "arrange 1"))))
-          (dwl-layout
-            (symbol "><>"))))
-      (keys
-        (list
-          (dwl-key
-            (modifiers
-              (list MODKEY MOD-SHIFT))
-            (key 1)
-            (action
-                (dwl-procedure
-                  (test-func "action 1"))))
-          (dwl-key
-            (modifiers
-              (list MODKEY MOD-SHIFT))
-            (key 2))))
-      (rules
-        (list
-          (dwl-rule
-            (id "firefox")
-            (tag 4))
-          (dwl-rule
-            (id "tidal")
-            (tag 5)))))))
+  (transform-config <dwl-configuration> dwl-config))
