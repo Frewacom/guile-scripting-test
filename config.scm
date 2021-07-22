@@ -1,6 +1,8 @@
 (use-modules (gnu services configuration)
              (ice-9 match)
+             (ice-9 format)
              (ice-9 pretty-print)
+             (ice-9 exceptions)
              (srfi srfi-1))
 
 ; Syntax helper to easily create callable actions.
@@ -21,31 +23,6 @@
 (define (string-or-bool? val) (or (string? val) (boolean? val)))
 (define (procedure-or-bool? val) (or (procedure? val) (boolean? val)))
 (define (list-of-modifiers? lst) (every (lambda (x) (member x %modifiers)) lst))
-
-; Apply conditional transformations to singular
-; values inside the dwl configuration.
-(define (transform-value field value)
-  (match
-    field
-    ('keys (map (lambda (key) (transform-config <dwl-key> key)) value))
-    ('layouts (map (lambda (key) (transform-config <dwl-layout> key)) value))
-    ('rules (map (lambda (rule) (transform-config <dwl-rule> rule)) value))
-    ('monitor-rules (map (lambda (rule) (transform-config <dwl-monitor-rule> rule)) value))
-    (_ value)))
-
-; Transforms a record into alist to allow the values to easily be
-; fetched via C using `scm_assoc_ref(alist, key)`.
-(define transform-config
-  (lambda (type config)
-    (remove
-      (lambda (pair) (equal? (car pair) "%location"))
-      (fold-right
-        (lambda (field acc)
-          (append
-            `((,(symbol->string field) . ,(transform-value field ((record-accessor type field) config))))
-            acc))
-        '()
-        (record-type-fields type)))))
 
 ; Layout configuration
 (define-configuration
@@ -217,7 +194,8 @@
       (append
         (list
           (dwl-monitor-rule
-            (name "eDP-1")))
+            (name "eDP-1")
+            (layout "monocle")))
         %base-monitor-rules))
     (keys
       (list
@@ -233,7 +211,101 @@
             (list MODKEY MOD-SHIFT))
           (key 2))))))
 
+; Apply conditional transformations to singular
+; values inside the monitor rule configuration.
+(define (transform-monitor-rule field value original)
+  (match
+    field
+    ('layout
+     (let* ((layouts (dwl-configuration-layouts original))
+            (index (list-index (lambda (l) (equal? (dwl-layout-id l) value)) layouts)))
+       (match
+         index
+         (#f
+           (raise-exception
+             (make-exception-with-message
+               (string-append value " is not a valid layout id"))))
+         (_ index))))
+    (_ value)))
+
+; Apply conditional transformations to singular
+; values inside the root dwl configuration.
+(define (transform-config-value field value original)
+  (match
+    field
+    ('keys
+     (map
+       (lambda
+         (key)
+         (transform-config
+           #:transform-value transform-key-value
+           #:type <dwl-key>
+           #:config key
+           #:original-config original))
+       value))
+    ('layouts
+     (map
+       (lambda
+         (layout)
+         (transform-config
+           #:type <dwl-layout>
+           #:config layout
+           #:original-config original))
+       value))
+    ('rules
+     (map
+       (lambda
+         (rule)
+         (transform-config
+           #:type <dwl-rule>
+           #:config rule
+           #:original-config original))
+       value))
+    ('monitor-rules
+     (map
+       (lambda
+         (monitor-rule)
+         (transform-config
+           #:transform-value transform-monitor-rule
+           #:type <dwl-monitor-rule>
+           #:config monitor-rule
+           #:original-config original))
+       value))
+    (_ value)))
+
+; Apply conditional transformations to singular
+; values inside the keybinding configuration.
+(define (transform-key-value field value original)
+  (match
+    field
+    ('modifiers (delete-duplicates value))
+    (_ value)))
+
+; Transforms a record into alist to allow the values to easily be
+; fetched via C using `scm_assoc_ref(alist, key)`.
+(define*
+  (transform-config
+    #:key
+    (transform-value transform-config-value)
+    (type #f)
+    (config '())
+    (original-config '()))
+  (remove
+    (lambda (pair) (equal? (car pair) "%location"))
+    (fold-right
+      (lambda (field acc)
+        (append
+          (let ((accessor ((record-accessor type field) config)))
+          `((,(symbol->string field) . ,(transform-value field accessor original-config))))
+          acc))
+      '()
+      (record-type-fields type))))
+
 ; Transform the configuration into
 ; a format that can be easily accessed from C.
 (define config
-  (transform-config <dwl-configuration> dwl-config))
+  (transform-config
+    #:transform-value transform-config-value
+    #:type <dwl-configuration>
+    #:config dwl-config
+    #:original-config dwl-config))
