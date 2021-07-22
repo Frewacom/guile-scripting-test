@@ -81,7 +81,7 @@
     "title of application")
   (tag
     (number 1)
-    "tag to place application on")
+    "tag to place application on. 1 corresponds to the first tag in the 'tags' list")
   (floating
     (boolean #f)
     "if application should be floating initially")
@@ -238,10 +238,46 @@
        (match
          index
          (#f
-           (raise-exception
-             (make-exception-with-message
-               (string-append value " is not a valid layout id"))))
+          (raise-exception
+            (make-exception-with-message
+              (string-append value " is not a valid layout id"))))
          (_ index))))
+    (_ value)))
+
+; Apply conditional transformations to singular
+; values inside the keybinding configuration.
+(define (transform-key-value field value original)
+  (match
+    field
+    ('modifiers (delete-duplicates value))
+    ('key
+     (if
+       (xkb-key? value)
+       value
+       (raise-exception
+         (make-exception-with-message
+           (string-append value " is not a valid XKB key")))))
+    (_ value)))
+
+; Apply conditional transformations to singular
+; values inside the application rule configuration.
+(define (transform-rule-value field value original)
+  (match
+    field
+    ('tag
+     (let ((tags (length (dwl-configuration-tags original)))
+           (tag (- value 1)))
+       (if
+         (< tag tags)
+         tag
+         (raise-exception
+           (make-exception-with-message
+             (string-append
+               "specified tag ("
+               (number->string value)
+               ") is out of bounds, there are only "
+               (number->string tags)
+               " available tags"))))))
     (_ value)))
 
 ; Apply conditional transformations to singular
@@ -274,6 +310,7 @@
          (rule)
          (transform-config
            #:type <dwl-rule>
+           #:transform-value transform-rule-value
            #:config rule
            #:original-config original))
        value))
@@ -288,21 +325,6 @@
            #:original-config original))
        value))
     (_ value)))
-
-; Apply conditional transformations to singular
-; values inside the keybinding configuration.
-(define (transform-key-value field value original)
-  (match
-    field
-    ('modifiers (delete-duplicates value))
-    ('key
-     (if
-       (xkb-key? value)
-       value
-       (raise-exception
-         (make-exception-with-message
-           (string-append value " is not a valid XKB key")))))
-  (_ value)))
 
 ; Transforms a record into alist to allow the values to easily be
 ; fetched via C using `scm_assoc_ref(alist, key)`.
