@@ -1,6 +1,6 @@
 CC=gcc
 
-PKGS = wlroots guile-3.0
+PKGS = wlroots guile-3.0 xkbcommon
 CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
 LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
 

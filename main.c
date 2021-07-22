@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <libguile.h>
+#include <xkbcommon/xkbcommon.h>
 #include <wlr/types/wlr_keyboard.h>
-
-#define MODKEY WLR_MODIFIER_LOGO
 
 typedef struct {
     const char *id;
@@ -95,12 +94,30 @@ test_func(SCM value)
     return SCM_UNSPECIFIED;
 }
 
+static SCM
+valid_key_p(SCM key)
+{
+    if (!scm_is_string(key)) {
+        return SCM_BOOL_F;
+    }
+
+    char *name = scm_to_locale_string(key);
+    return scm_from_bool(xkb_keysym_from_name(name, 0) != XKB_KEY_NoSymbol);
+}
+
 static void
 inner_main(void *data, int argc, char **argv)
 {
-    scm_c_define("MODKEY", scm_from_int(MODKEY));
-    scm_c_define("MOD-SHIFT", scm_from_int(WLR_MODIFIER_SHIFT));
+    scm_c_define("SHIFT", scm_from_int(WLR_MODIFIER_SHIFT));
+    scm_c_define("CAPS", scm_from_int(WLR_MODIFIER_CAPS));
+    scm_c_define("CTRL", scm_from_int(WLR_MODIFIER_CTRL));
+    scm_c_define("ALT", scm_from_int(WLR_MODIFIER_ALT));
+    scm_c_define("MOD2", scm_from_int(WLR_MODIFIER_MOD2));
+    scm_c_define("MOD3", scm_from_int(WLR_MODIFIER_MOD3));
+    scm_c_define("SUPER", scm_from_int(WLR_MODIFIER_LOGO));
+    scm_c_define("MOD5", scm_from_int(WLR_MODIFIER_MOD5));
     scm_c_define_gsubr("test-func", 1, 0, 0, &test_func);
+    scm_c_define_gsubr("xkb-key?", 1, 0, 0, &valid_key_p);
 
     printf("Reading config file...\n");
     SCM evaluated = scm_c_primitive_load("config.scm");
@@ -147,7 +164,7 @@ inner_main(void *data, int argc, char **argv)
         for (int i = 0; i < length; i++) {
             SCM item = scm_list_ref(keys, scm_from_int(i));
             SCM modifiers = get_value(item, "modifiers");
-            int key = get_value_int(item, "key");
+            char *key = get_value_string(item, "key");
 
             printf("------------------\n");
             printf("* modifiers:");
@@ -157,7 +174,9 @@ inner_main(void *data, int argc, char **argv)
                 printf(" %d", scm_to_int(modifier));
             }
             printf("\n");
-            printf("* key: %d\n", key);
+            xkb_keysym_t sym = xkb_keysym_from_name(key, 0);
+
+            printf("* key: %s (%d)\n", key, sym);
 
             SCM action = get_value(item, "action");
             if (scm_procedure_p(action) == SCM_BOOL_T) {

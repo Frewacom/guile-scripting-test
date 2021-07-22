@@ -13,12 +13,16 @@
     ((dwl-procedure exp ...)
      (lambda () (begin exp ...)))))
 
-; Since they will be undefined in REPL
-(define-once MODKEY 0)
-(define-once MOD-SHIFT 1)
-
 ; List of available key modifiers
-(define %modifiers (list MOD-SHIFT MODKEY))
+(define %modifiers
+  (list SHIFT
+        CAPS
+        CTRL
+        ALT
+        MOD2
+        MOD3
+        SUPER
+        MOD5))
 
 (define (string-or-bool? val) (or (string? val) (boolean? val)))
 (define (procedure-or-bool? val) (or (procedure? val) (boolean? val)))
@@ -113,7 +117,7 @@
     (list-of-modifiers (list MODKEY))
     "list of modifiers to use for the keybinding")
   (key
-    (number)
+    (string)
     "regular key that triggers the keybinding")
   (action
     (procedure-or-bool #f)
@@ -201,15 +205,15 @@
       (list
         (dwl-key
           (modifiers
-            (list MODKEY MOD-SHIFT))
-          (key 1)
+            (list SUPER SHIFT))
+          (key "p")
           (action
             (dwl-procedure
               (test-func "action 1"))))
         (dwl-key
           (modifiers
-            (list MODKEY MOD-SHIFT))
-          (key 2))))))
+            (list SUPER ALT))
+          (key "Return"))))))
 
 ; Apply conditional transformations to singular
 ; values inside the monitor rule configuration.
@@ -279,7 +283,14 @@
   (match
     field
     ('modifiers (delete-duplicates value))
-    (_ value)))
+    ('key
+     (if
+       (xkb-key? value)
+       value
+       (raise-exception
+         (make-exception-with-message
+           (string-append value " is not a valid XKB key")))))
+  (_ value)))
 
 ; Transforms a record into alist to allow the values to easily be
 ; fetched via C using `scm_assoc_ref(alist, key)`.
@@ -296,7 +307,7 @@
       (lambda (field acc)
         (append
           (let ((accessor ((record-accessor type field) config)))
-          `((,(symbol->string field) . ,(transform-value field accessor original-config))))
+            `((,(symbol->string field) . ,(transform-value field accessor original-config))))
           acc))
       '()
       (record-type-fields type))))
