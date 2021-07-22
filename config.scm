@@ -24,8 +24,10 @@
         SUPER
         MOD5))
 
-(define (string-or-bool? val) (or (string? val) (boolean? val)))
-(define (procedure-or-bool? val) (or (procedure? val) (boolean? val)))
+; General predicates
+(define (maybe-string? val) (or (string? val) (not val)))
+(define (maybe-procedure? val) (or (procedure? val) (not val)))
+(define (list-of-strings? lst) (every string? lst))
 (define (list-of-modifiers? lst) (every (lambda (x) (member x %modifiers)) lst))
 
 ; Layout configuration
@@ -38,7 +40,7 @@
     (string)
     "symbol that should be shown when layout is active")
   (arrange
-    (procedure-or-bool #f)
+    (maybe-procedure #f)
     "procedure to call when selected")
   (no-serialization))
 
@@ -74,10 +76,10 @@
 (define-configuration
   dwl-rule
   (id
-    (string-or-bool #f)
+    (maybe-string #f)
     "id of application")
   (title
-    (string-or-bool #f)
+    (maybe-string #f)
     "title of application")
   (tag
     (number 1)
@@ -94,7 +96,7 @@
 (define-configuration
   dwl-monitor-rule
   (name
-    (string-or-bool #f)
+    (maybe-string #f)
     "name of monitor, e.g. eDP-1")
   (master-factor
     (number 0.55)
@@ -119,6 +121,27 @@
     "position on the y-axis")
   (no-serialization))
 
+; XKB configuration
+; https://xkbcommon.org/doc/current/structxkb__rule__names.html
+(define-configuration
+  dwl-xkb-rule
+  (rules
+    (string "")
+    "the rules file to use")
+  (model
+    (string "")
+    "the keyboard model that should be used to interpret keycodes and LEDs")
+  (layouts
+    (list-of-strings '())
+    "a list of layouts (languages) to include in the keymap")
+  (variants
+    (list-of-strings '())
+    "a list of layout variants, one per layout")
+  (options
+    (list-of-strings '())
+    "a list of layout options")
+  (no-serialization))
+
 ; Keybinding configuration
 (define-configuration
   dwl-key
@@ -129,7 +152,7 @@
     (string)
     "regular key that triggers the keybinding")
   (action
-    (procedure-or-bool #f)
+    (maybe-procedure #f)
     "procedure to call when triggered")
   (no-serialization))
 
@@ -138,6 +161,7 @@
 (define (list-of-keys? lst) (every dwl-key? lst))
 (define (list-of-rules? lst) (every dwl-rule? lst))
 (define (list-of-layouts? lst) (every dwl-layout? lst))
+(define (maybe-xkb-rule? val) (or (dwl-xkb-rule? val) (not val)))
 (define (list-of-monitor-rules? lst) (every dwl-monitor-rule? lst))
 
 ; Default monitor rules
@@ -184,6 +208,9 @@
   (monitor-rules
     (list-of-monitor-rules %base-monitor-rules)
     "list of monitor rules")
+  (xkb-rules
+    (maybe-xkb-rule #f)
+    "xkb rules and options")
   (keys
     (list-of-keys '())
     "list of keybindings")
@@ -213,6 +240,10 @@
             (x 1920)
             (y -10)))
         %base-monitor-rules))
+    (xkb-rules
+      (dwl-xkb-rule
+        (layouts '("us" "se"))
+        (options '("grp:alt_shift_toggle" "grp_led:caps" "caps:escape"))))
     (keys
       (list
         (dwl-key
@@ -227,8 +258,7 @@
             (list SUPER ALT))
           (key "Return"))))))
 
-; Apply conditional transformations to singular
-; values inside the monitor rule configuration.
+; Value transforms
 (define (transform-monitor-rule field value original)
   (match
     field
@@ -244,8 +274,6 @@
          (_ index))))
     (_ value)))
 
-; Apply conditional transformations to singular
-; values inside the keybinding configuration.
 (define (transform-key-value field value original)
   (match
     field
@@ -259,9 +287,7 @@
            (string-append value " is not a valid XKB key")))))
     (_ value)))
 
-; Apply conditional transformations to singular
-; values inside the application rule configuration.
-(define (transform-rule-value field value original)
+(define (transform-rule field value original)
   (match
     field
     ('tag
@@ -278,6 +304,16 @@
                ") is out of bounds, there are only "
                (number->string tags)
                " available tags"))))))
+    (_ value)))
+
+(define (transform-xkb-rule field value original)
+  (match
+    field
+    ((or 'layouts 'variants 'options)
+     (if
+       (null? value)
+       "" ; empty string is interpreted as NULL in `xkb_keymap_new_from_names()`
+       (string-join value ",")))
     (_ value)))
 
 ; Apply conditional transformations to singular
@@ -310,7 +346,7 @@
          (rule)
          (transform-config
            #:type <dwl-rule>
-           #:transform-value transform-rule-value
+           #:transform-value transform-rule
            #:config rule
            #:original-config original))
        value))
@@ -324,6 +360,15 @@
            #:config monitor-rule
            #:original-config original))
        value))
+    ('xkb-rules
+     (if
+       (not value)
+       value
+       (transform-config
+         #:transform-value transform-xkb-rule
+         #:type <dwl-xkb-rule>
+         #:config value
+         #:original-config original)))
     (_ value)))
 
 ; Transforms a record into alist to allow the values to easily be
