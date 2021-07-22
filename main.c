@@ -2,6 +2,7 @@
 #include <libguile.h>
 #include <xkbcommon/xkbcommon.h>
 #include <wlr/types/wlr_keyboard.h>
+#include <wayland-client-protocol.h>
 
 typedef struct {
     const char *id;
@@ -116,6 +117,14 @@ inner_main(void *data, int argc, char **argv)
     scm_c_define("MOD3", scm_from_int(WLR_MODIFIER_MOD3));
     scm_c_define("SUPER", scm_from_int(WLR_MODIFIER_LOGO));
     scm_c_define("MOD5", scm_from_int(WLR_MODIFIER_MOD5));
+    scm_c_define("NORMAL", scm_from_int(WL_OUTPUT_TRANSFORM_NORMAL));
+    scm_c_define("ROTATE-90", scm_from_int(WL_OUTPUT_TRANSFORM_90));
+    scm_c_define("ROTATE-180", scm_from_int(WL_OUTPUT_TRANSFORM_180));
+    scm_c_define("ROTATE-270", scm_from_int(WL_OUTPUT_TRANSFORM_270));
+    scm_c_define("FLIPPED", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED));
+    scm_c_define("FLIPPED-90", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED_90));
+    scm_c_define("FLIPPED-180", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED_180));
+    scm_c_define("FLIPPED-270", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED_270));
     scm_c_define_gsubr("test-func", 1, 0, 0, &test_func);
     scm_c_define_gsubr("xkb-key?", 1, 0, 0, &valid_key_p);
 

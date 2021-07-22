@@ -108,6 +108,15 @@
   (layout
     (string "default")
     "default layout (id) to use for monitor")
+  (transform
+    (number NORMAL)
+    "output transformations, e.g. rotation, reflect")
+  (x
+    (number 0)
+    "position on the x-axis")
+  (y
+    (number 0)
+    "position on the y-axis")
   (no-serialization))
 
 ; Keybinding configuration
@@ -199,7 +208,10 @@
         (list
           (dwl-monitor-rule
             (name "eDP-1")
-            (layout "monocle")))
+            (layout "monocle")
+            (transform FLIPPED-90)
+            (x 1920)
+            (y -10)))
         %base-monitor-rules))
     (keys
       (list
