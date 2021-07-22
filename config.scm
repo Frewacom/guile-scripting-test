@@ -27,8 +27,15 @@
 ; General predicates
 (define (maybe-string? val) (or (string? val) (not val)))
 (define (maybe-procedure? val) (or (procedure? val) (not val)))
+(define (modifier? val) (member val %modifiers))
 (define (list-of-strings? lst) (every string? lst))
-(define (list-of-modifiers? lst) (every (lambda (x) (member x %modifiers)) lst))
+(define (list-of-tag-key-pairs? lst)
+  (every
+    (lambda
+      (pair)
+      (and (xkb-key? (car pair)) (number? (cdr pair))))
+    lst))
+(define (list-of-modifiers? lst) (every modifier? lst))
 
 ; Layout configuration
 (define-configuration
@@ -156,6 +163,36 @@
     "procedure to call when triggered")
   (no-serialization))
 
+; Tag keybindings configuration
+(define-configuration
+  dwl-tag-keys
+  (view-modifiers
+    (list-of-modifiers (list SUPER))
+    "modifier(s) that should be used to view a tag")
+  (tag-modifiers
+    (list-of-modifiers (list SUPER SHIFT))
+    "modifier(s) that should be used to move windows to a tag")
+  (toggle-view-modifiers
+    (list-of-modifiers (list SUPER CTRL))
+    "modifier(s) that should be used to toggle the visibilty of a tag")
+  (toggle-tag-modifiers
+    (list-of-modifiers (list SUPER SHIFT CTRL))
+    "modifier(s) that should be used to toggle a tag for a window")
+  (keys
+    (list-of-tag-key-pairs
+      '(("1" . 1)
+        ("2" . 2)
+        ("3" . 3)
+        ("4" . 4)
+        ("5" . 5)
+        ("6" . 6)
+        ("7" . 7)
+        ("8" . 8)
+        ("9" . 9)))
+    "list of key/tag pairs to generate tag keybindings for,
+    e.g. '("exclam" . 1) for mapping exclamation key to tag 1")
+  (no-serialization))
+
 ; dwl configuration type predicates
 (define (list-of-tags? lst) (every string? lst))
 (define (list-of-keys? lst) (every dwl-key? lst))
@@ -214,6 +251,9 @@
   (keys
     (list-of-keys '())
     "list of keybindings")
+  (tag-keys
+    (dwl-tag-keys '(dwl-tag-keys))
+    "tag keys configuration")
   (no-serialization))
 
 ; Custom dwl config
@@ -256,7 +296,15 @@
         (dwl-key
           (modifiers
             (list SUPER ALT))
-          (key "Return"))))))
+          (key "Return"))))
+    (tag-keys
+      (dwl-tag-keys
+        (keys
+          '(("1" . 1)
+            ("2" . 2)
+            ("3" . 3)
+            ("4" . 4)
+            ("5" . 5)))))))
 
 ; Value transforms
 (define (transform-monitor-rule field value original)
@@ -274,7 +322,7 @@
          (_ index))))
     (_ value)))
 
-(define (transform-key-value field value original)
+(define (transform-key field value original)
   (match
     field
     ('modifiers (delete-duplicates value))
@@ -316,6 +364,66 @@
        (string-join value ",")))
     (_ value)))
 
+; Transform tag keys into separate dwl-key configurations.
+; This is a helper transform for generating keybindings for tag actions,
+; e.g. viewing tags, moving windows, toggling visibilty of tags, etc.
+; For example, a list of 9 tags will result i 9*4 keybindings.
+;
+; TODO: Add correct action to each generated keybinding
+; TODO: Do we need to specify different bindings for those that use the shift modifier?
+;       See https://github.com/djpohly/dwl/blob/3b05eadeaf5e2de4caf127cfa07642342cccddbc/config.def.h#L55
+(define (transform-tag-keys value original)
+  (let ((keys (dwl-tag-keys-keys value))
+        (view-modifiers (dwl-tag-keys-view-modifiers value))
+        (tag-modifiers (dwl-tag-keys-tag-modifiers value))
+        (toggle-view-modifiers (dwl-tag-keys-toggle-view-modifiers value))
+        (toggle-tag-modifiers (dwl-tag-keys-toggle-tag-modifiers value)))
+    (map
+      (lambda
+        (parsed-key)
+        (transform-config
+          #:transform-value transform-key
+          #:type <dwl-key>
+          #:config parsed-key
+          #:original-config original))
+      (fold
+        (lambda
+          (pair acc)
+          (let
+            ((key (car pair))
+             (tag (cdr pair)) ; currently unused until we add the actions
+             (tags (length (dwl-configuration-tags original))))
+            (if
+              (<= tag tags)
+              (cons*
+                (dwl-key
+                  (modifiers view-modifiers)
+                  (key key)
+                  (action #f))
+                (dwl-key
+                  (modifiers tag-modifiers)
+                  (key key)
+                  (action #f))
+                (dwl-key
+                  (modifiers toggle-view-modifiers)
+                  (key key)
+                  (action #f))
+                (dwl-key
+                  (modifiers toggle-tag-modifiers)
+                  (key key)
+                  (action #f))
+                acc)
+              (raise-exception
+                (make-exception-with-message
+                  (string-append
+                    "specified target tag ("
+                    (number->string tag)
+                    ") in tag key is out of bounds, there are only "
+                    (number->string tags)
+                    " available tags"))))))
+        '()
+        keys))))
+
 ; Apply conditional transformations to singular
 ; values inside the root dwl configuration.
 (define (transform-config-value field value original)
@@ -326,11 +434,20 @@
        (lambda
          (key)
          (transform-config
-           #:transform-value transform-key-value
+           #:transform-value transform-key
            #:type <dwl-key>
            #:config key
            #:original-config original))
        value))
+    ('tag-keys
+     (if
+       (<=
+         (length (dwl-configuration-tags original))
+         (length (dwl-tag-keys-keys value)))
+       (transform-tag-keys value original)
+       (raise-exception
+         (make-exception-with-message
+           "too few tag keys, not all tags can be accessed"))))
     ('layouts
      (map
        (lambda
@@ -381,6 +498,7 @@
     (config '())
     (original-config '()))
   (remove
+    ; the %location field is autogenerated and is not needed
     (lambda (pair) (equal? (car pair) "%location"))
     (fold-right
       (lambda (field acc)
