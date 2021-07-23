@@ -29,13 +29,19 @@
 (define (maybe-procedure? val) (or (procedure? val) (not val)))
 (define (modifier? val) (member val %modifiers))
 (define (list-of-strings? lst) (every string? lst))
+(define (list-of-modifiers? lst) (every modifier? lst))
 (define (list-of-tag-key-pairs? lst)
   (every
     (lambda
       (pair)
       (and (xkb-key? (car pair)) (number? (cdr pair))))
     lst))
-(define (list-of-modifiers? lst) (every modifier? lst))
+(define (rgb-color? lst)
+  (and
+    (equal? (length lst) 4)
+    (every
+      (lambda (v) (and (number? v) (and (>= v 0) (<= v 1))))
+      lst)))
 
 ; Layout configuration
 (define-configuration
@@ -78,6 +84,20 @@
   (list %layout-default
         %layout-monocle
         %layout-floating))
+
+; dwl color configuration
+(define-configuration
+  dwl-colors
+  (root
+    (rgb-color '(0.3 0.3 0.3 1.0))
+    "root color in RGBA format")
+  (border
+    (rgb-color '(0.5 0.5 0.5 1.0))
+    "border color in RBA format")
+  (focus
+    (rgb-color '(1.0 0.0 0.0 1.0))
+    "border focus color in RGBA format")
+  (no-serialization))
 
 ; Application rule configuration
 (define-configuration
@@ -267,6 +287,9 @@
     (list-of-tags
       (list "1" "2" "3" "4" "5" "6" "7" "8" "9"))
     "list of tag names")
+  (colors
+    (dwl-colors (dwl-colors))
+    "root, border and focus colors in RGBA format, 0-255 for RGB and 0-1 for alpha")
   (layouts
     (list-of-layouts %base-layouts)
     "list of layouts to use")
@@ -283,7 +306,7 @@
     (list-of-keys '())
     "list of keybindings")
   (tag-keys
-    (dwl-tag-keys '(dwl-tag-keys))
+    (dwl-tag-keys (dwl-tag-keys))
     "tag keys configuration")
   (buttons
     (list-of-buttons %base-buttons)
@@ -296,6 +319,9 @@
     (border-px 2)
     (tags
       (list "1" "2" "3" "4" "5"))
+    (colors
+      (dwl-colors
+        (root '(0.4 0.4 0.4 1))))
     (rules
       (list
         (dwl-rule
@@ -463,6 +489,11 @@
 (define (transform-config-value field value original)
   (match
     field
+    ('colors
+     (transform-config
+       #:type <dwl-colors>
+       #:config value
+       #:original-config original))
     ('keys
      (map
        (lambda
