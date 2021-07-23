@@ -3,6 +3,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wayland-client-protocol.h>
+#include <linux/input-event-codes.h>
 
 typedef struct {
     const char *id;
@@ -109,6 +110,7 @@ valid_key_p(SCM key)
 static void
 inner_main(void *data, int argc, char **argv)
 {
+    // Key modifiers
     scm_c_define("SHIFT", scm_from_int(WLR_MODIFIER_SHIFT));
     scm_c_define("CAPS", scm_from_int(WLR_MODIFIER_CAPS));
     scm_c_define("CTRL", scm_from_int(WLR_MODIFIER_CTRL));
@@ -117,6 +119,8 @@ inner_main(void *data, int argc, char **argv)
     scm_c_define("MOD3", scm_from_int(WLR_MODIFIER_MOD3));
     scm_c_define("SUPER", scm_from_int(WLR_MODIFIER_LOGO));
     scm_c_define("MOD5", scm_from_int(WLR_MODIFIER_MOD5));
+
+    // Monitor transforms
     scm_c_define("NORMAL", scm_from_int(WL_OUTPUT_TRANSFORM_NORMAL));
     scm_c_define("ROTATE-90", scm_from_int(WL_OUTPUT_TRANSFORM_90));
     scm_c_define("ROTATE-180", scm_from_int(WL_OUTPUT_TRANSFORM_180));
@@ -125,6 +129,13 @@ inner_main(void *data, int argc, char **argv)
     scm_c_define("FLIPPED-90", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED_90));
     scm_c_define("FLIPPED-180", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED_180));
     scm_c_define("FLIPPED-270", scm_from_int(WL_OUTPUT_TRANSFORM_FLIPPED_270));
+
+    // Mouse buttons
+    scm_c_define("MOUSE-LEFT", scm_from_int(BTN_LEFT));
+    scm_c_define("MOUSE-MIDDLE", scm_from_int(BTN_MIDDLE));
+    scm_c_define("MOUSE-RIGHT", scm_from_int(BTN_RIGHT));
+
+    // Functions
     scm_c_define_gsubr("test-func", 1, 0, 0, &test_func);
     scm_c_define_gsubr("xkb-key?", 1, 0, 0, &valid_key_p);
 

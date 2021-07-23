@@ -158,7 +158,21 @@
   (key
     (string)
     "regular key that triggers the keybinding")
-  (action
+  (procedure
+    (maybe-procedure #f)
+    "procedure to call when triggered")
+  (no-serialization))
+
+; Mouse button configuration
+(define-configuration
+  dwl-button
+  (modifiers
+    (list-of-modifiers (list MODKEY))
+    "list of modifiers to use for the button")
+  (button
+    (number)
+    "mouse button to use")
+  (procedure
     (maybe-procedure #f)
     "procedure to call when triggered")
   (no-serialization))
@@ -197,6 +211,7 @@
 (define (list-of-tags? lst) (every string? lst))
 (define (list-of-keys? lst) (every dwl-key? lst))
 (define (list-of-rules? lst) (every dwl-rule? lst))
+(define (list-of-buttons? lst) (every dwl-button? lst))
 (define (list-of-layouts? lst) (every dwl-layout? lst))
 (define (maybe-xkb-rule? val) (or (dwl-xkb-rule? val) (not val)))
 (define (list-of-monitor-rules? lst) (every dwl-monitor-rule? lst))
@@ -204,6 +219,22 @@
 ; Default monitor rules
 (define %base-monitor-rules
   (list (dwl-monitor-rule)))
+
+; Default mouse button bindings
+(define %base-buttons
+  (list
+    (dwl-button
+      (modifiers (list SUPER))
+      (button MOUSE-LEFT)
+      (procedure #f)) ; move window
+    (dwl-button
+      (modifiers (list SUPER))
+      (button MOUSE-MIDDLE)
+      (procedure #f)) ; toggle floating
+    (dwl-button
+      (modifiers (list SUPER))
+      (button MOUSE-RIGHT)
+      (procedure #f)))) ; resize window
 
 ; dwl configuration
 (define-configuration
@@ -254,6 +285,9 @@
   (tag-keys
     (dwl-tag-keys '(dwl-tag-keys))
     "tag keys configuration")
+  (buttons
+    (list-of-buttons %base-buttons)
+    "list of mouse button keybindings, e.g. resizing or moving windows")
   (no-serialization))
 
 ; Custom dwl config
@@ -290,7 +324,7 @@
           (modifiers
             (list SUPER SHIFT))
           (key "p")
-          (action
+          (procedure
             (dwl-procedure
               (test-func "action 1"))))
         (dwl-key
@@ -399,19 +433,19 @@
                 (dwl-key
                   (modifiers view-modifiers)
                   (key key)
-                  (action #f))
+                  (procedure #f))
                 (dwl-key
                   (modifiers tag-modifiers)
                   (key key)
-                  (action #f))
+                  (procedure #f))
                 (dwl-key
                   (modifiers toggle-view-modifiers)
                   (key key)
-                  (action #f))
+                  (procedure #f))
                 (dwl-key
                   (modifiers toggle-tag-modifiers)
                   (key key)
-                  (action #f))
+                  (procedure #f))
                 acc)
               (raise-exception
                 (make-exception-with-message
@@ -448,6 +482,15 @@
        (raise-exception
          (make-exception-with-message
            "too few tag keys, not all tags can be accessed"))))
+    ('buttons
+     (map
+       (lambda
+         (button)
+         (transform-config
+           #:type <dwl-button>
+           #:config button
+           #:original-config original))
+       value))
     ('layouts
      (map
        (lambda
